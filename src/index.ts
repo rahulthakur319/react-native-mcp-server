@@ -26,7 +26,12 @@ class ReactNativeDebuggerMCP {
       }
     );
 
-    this.metroDiscovery = new MetroDiscovery();
+    // Initialize MetroDiscovery with environment variable support
+    const customPorts = process.env.RN_MCP_PORTS ? 
+      process.env.RN_MCP_PORTS.split(',').map(p => parseInt(p.trim(), 10)).filter(p => !isNaN(p)) : 
+      undefined;
+    
+    this.metroDiscovery = new MetroDiscovery(customPorts);
     this.setupToolHandlers();
   }
 
@@ -36,16 +41,41 @@ class ReactNativeDebuggerMCP {
         tools: [
           {
             name: 'getConnectedApps',
-            description: 'Get all connected React Native apps from Metro server',
+            description: 'Get all connected React Native apps from Metro server or auto-discover',
             inputSchema: {
               type: 'object',
               properties: {
                 metroServerPort: {
                   type: 'number',
-                  description: 'The port number of the Metro server',
+                  description: 'The port number of the Metro server (optional - will auto-discover if not provided)',
                 },
               },
-              required: ['metroServerPort'],
+            },
+          },
+          {
+            name: 'scanPortRange',
+            description: 'Scan a range of ports for Metro servers and connected React Native apps',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                startPort: {
+                  type: 'number',
+                  description: 'Start of port range to scan',
+                },
+                endPort: {
+                  type: 'number',
+                  description: 'End of port range to scan',
+                },
+              },
+              required: ['startPort', 'endPort'],
+            },
+          },
+          {
+            name: 'getConfiguredPorts',
+            description: 'Get the list of ports currently configured for Metro discovery',
+            inputSchema: {
+              type: 'object',
+              properties: {},
             },
           },
           {
@@ -90,6 +120,12 @@ class ReactNativeDebuggerMCP {
         case 'getConnectedApps':
           return this.handleGetConnectedApps(request.params.arguments);
 
+        case 'scanPortRange':
+          return this.handleScanPortRange(request.params.arguments);
+
+        case 'getConfiguredPorts':
+          return this.handleGetConfiguredPorts(request.params.arguments);
+
         case 'readConsoleLogsFromApp':
           return this.handleReadConsoleLogsFromApp(request.params.arguments);
 
@@ -106,41 +142,142 @@ class ReactNativeDebuggerMCP {
     try {
       const { metroServerPort } = args;
       
-      if (!metroServerPort || typeof metroServerPort !== 'number') {
+      if (metroServerPort && typeof metroServerPort !== 'number') {
         throw new McpError(
           ErrorCode.InvalidParams,
-          'metroServerPort must be a number'
+          'metroServerPort must be a number if provided'
         );
       }
 
-      // Check if Metro is running
-      const isRunning = await this.metroDiscovery.isMetroRunning(metroServerPort);
-      if (!isRunning) {
+      if (metroServerPort) {
+        // Check specific port
+        const isRunning = await this.metroDiscovery.isMetroRunning(metroServerPort);
+        if (!isRunning) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Metro server is not running on port ${metroServerPort}`,
+              },
+            ],
+          };
+        }
+        
+        const apps = await this.metroDiscovery.getConnectedApps(metroServerPort);
         return {
           content: [
             {
               type: 'text',
-              text: `Metro server is not running on port ${metroServerPort}`,
+              text: JSON.stringify(apps, null, 2),
+            },
+          ],
+        };
+      } else {
+        // Auto-discover from all configured ports
+        const apps = await this.metroDiscovery.getAppsFromPort();
+        const configuredPorts = this.metroDiscovery.getConfiguredPorts();
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                apps,
+                scannedPorts: configuredPorts,
+                foundAppsCount: apps.length
+              }, null, 2),
             },
           ],
         };
       }
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to get connected apps: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
 
-      // Get connected apps
-      const apps = await this.metroDiscovery.getConnectedApps(metroServerPort);
+  private async handleScanPortRange(args: any) {
+    try {
+      const { startPort, endPort } = args;
       
+      if (!startPort || !endPort || typeof startPort !== 'number' || typeof endPort !== 'number') {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          'startPort and endPort must be numbers'
+        );
+      }
+
+      if (startPort > endPort) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          'startPort must be less than or equal to endPort'
+        );
+      }
+
+      if (endPort - startPort > 100) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          'Port range cannot exceed 100 ports for performance reasons'
+        );
+      }
+
+      const results = await this.metroDiscovery.scanPortRange(startPort, endPort);
+      const allApps: ReactNativeApp[] = [];
+      const portResults: Array<{port: number, apps: ReactNativeApp[]}> = [];
+
+      for (const [port, apps] of results.entries()) {
+        allApps.push(...apps);
+        portResults.push({ port, apps });
+      }
+
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(apps, null, 2),
+            text: JSON.stringify({
+              scannedRange: `${startPort}-${endPort}`,
+              portsWithApps: portResults,
+              totalAppsFound: allApps.length,
+              apps: allApps
+            }, null, 2),
           },
         ],
       };
     } catch (error) {
       throw new McpError(
         ErrorCode.InternalError,
-        `Failed to get connected apps: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to scan port range: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  private async handleGetConfiguredPorts(args: any) {
+    try {
+      const configuredPorts = this.metroDiscovery.getConfiguredPorts();
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              configuredPorts,
+              portCount: configuredPorts.length,
+              environmentVariables: {
+                RN_METRO_PORTS: process.env.RN_METRO_PORTS || 'not set',
+                RN_METRO_PORT: process.env.RN_METRO_PORT || 'not set',
+                METRO_PORT: process.env.METRO_PORT || 'not set',
+                RN_MCP_PORTS: process.env.RN_MCP_PORTS || 'not set'
+              }
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to get configured ports: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }

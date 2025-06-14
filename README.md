@@ -37,7 +37,10 @@ npm run build
     "react-native-debugger": {
       "command": "node",
       "args": ["/path/to/react-native-mcp-server/dist/index.js"],
-      "env": {}
+      "env": {
+        "RN_METRO_PORT": "8081",
+        "RN_METRO_PORTS": "8081,8082,8083,19000,19001"
+      }
     }
   }
 }
@@ -51,10 +54,30 @@ npm run build
 npm start
 ```
 
+### Custom Port Configuration
+
+Configure custom Metro ports using environment variables:
+
+```bash
+# Single port (will also scan port+1, port+2)
+export RN_METRO_PORT=3000
+npm start
+
+# Multiple specific ports
+export RN_METRO_PORTS="3000,3001,8081,19000"
+npm start
+
+# For Expo projects (ports 19000-19002)
+export RN_METRO_PORTS="19000,19001,19002"
+npm start
+```
+
 ## MCP Tools Available
 
-- **getConnectedApps(metroServerPort?)** - List all connected React Native apps
-- **readConsoleLogsFromApp(appId, maxLogs?)** - Get console logs from specific app
+- **getConnectedApps(metroServerPort?)** - List all connected React Native apps (auto-discovers if no port specified)
+- **scanPortRange(startPort, endPort)** - Scan a range of ports for Metro servers
+- **getConfiguredPorts()** - Show currently configured ports and environment variables
+- **readConsoleLogsFromApp(app, maxLogs?)** - Get console logs from specific app
 
 ## WebSocket Discovery
 
@@ -72,6 +95,30 @@ Once configured, you can ask Claude to:
 "Show me the console logs from my React Native app"
 "What React Native apps are currently connected?"
 "Monitor my app's console output for errors"
+"Scan ports 3000-3010 for React Native apps"
+"What ports are you currently scanning?"
 ```
 
-The server will automatically find your running Metro server and connected apps.
+### Port Configuration Examples
+
+**For standard React Native projects:**
+```bash
+export RN_METRO_PORT=8081  # Default Metro port
+```
+
+**For Expo projects:**
+```bash
+export RN_METRO_PORTS="19000,19001,19002"  # Expo dev server ports
+```
+
+**For custom Metro setups:**
+```bash
+export RN_METRO_PORTS="3000,3001,8080,8081"  # Custom ports
+```
+
+**For development with multiple projects:**
+```bash
+export RN_METRO_PORTS="8081,8082,8083,19000,19001,3000,3001"
+```
+
+The server will automatically find your running Metro server and connected apps across all configured ports.

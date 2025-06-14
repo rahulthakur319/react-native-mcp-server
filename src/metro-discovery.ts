@@ -2,7 +2,36 @@ import fetch from 'node-fetch';
 import { ReactNativeApp } from './types.js';
 
 export class MetroDiscovery {
-  private readonly defaultPorts = [8081, 8082, 8083, 19000, 19001];
+  private readonly defaultPorts: number[];
+
+  constructor(customPorts?: number[]) {
+    // Use custom ports if provided, otherwise use defaults with environment variable support
+    this.defaultPorts = customPorts || this.getDefaultPorts();
+  }
+
+  /**
+   * Get default ports from environment or fallback to standard React Native ports
+   */
+  private getDefaultPorts(): number[] {
+    const envPorts = process.env.RN_METRO_PORTS;
+    const envDefaultPort = process.env.RN_METRO_PORT || process.env.METRO_PORT;
+    
+    if (envPorts) {
+      // Parse comma-separated port list: "8081,8082,8083"
+      return envPorts.split(',').map(p => parseInt(p.trim(), 10)).filter(p => !isNaN(p));
+    }
+    
+    if (envDefaultPort) {
+      const port = parseInt(envDefaultPort, 10);
+      if (!isNaN(port)) {
+        // If a specific port is set, check that port plus common alternatives
+        return [port, port + 1, port + 2];
+      }
+    }
+    
+    // Standard React Native / Expo ports
+    return [8081, 8082, 8083, 19000, 19001, 19002, 3000, 3001];
+  }
   
   /**
    * Check if Metro server is running on a specific port
@@ -99,5 +128,34 @@ export class MetroDiscovery {
     }
     
     return apps;
+  }
+
+  /**
+   * Scan a range of ports for Metro servers
+   */
+  async scanPortRange(startPort: number, endPort: number): Promise<Map<number, ReactNativeApp[]>> {
+    const results = new Map<number, ReactNativeApp[]>();
+    const ports = Array.from({ length: endPort - startPort + 1 }, (_, i) => startPort + i);
+    
+    await Promise.all(
+      ports.map(async (port) => {
+        const isRunning = await this.isMetroRunning(port);
+        if (isRunning) {
+          const apps = await this.getConnectedApps(port);
+          if (apps.length > 0) {
+            results.set(port, apps);
+          }
+        }
+      })
+    );
+    
+    return results;
+  }
+
+  /**
+   * Get all configured ports being scanned
+   */
+  getConfiguredPorts(): number[] {
+    return [...this.defaultPorts];
   }
 }

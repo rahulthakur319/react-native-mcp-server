@@ -1,7 +1,7 @@
 {
   "name": "react-native-debugger-mcp",
-  "version": "1.0.0",
-  "description": "MCP server for React Native debugger console logs",
+  "version": "1.1.0",
+  "description": "MCP server for React Native debugger console logs with flexible port configuration",
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
