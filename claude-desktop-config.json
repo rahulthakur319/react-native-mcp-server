@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "react-native-debugger": {
+      "command": "node",
+      "args": ["/Users/thakur/Work/varanasi/dev/react-native-mcp-server/dist/index.js"],
+      "env": {}
+    }
+  }
+}
