@@ -18,14 +18,45 @@ An MCP (Model Context Protocol) server that connects to React Native Metro debug
 
 ## Installation
 
+### Option 1: NPM Global Install (Recommended)
+
 ```bash
-git clone <repository-url>
+# Install globally
+npm install -g react-native-mcp-server
+
+# Or use directly with npx (no installation required)
+npx react-native-mcp-server --help
+```
+
+### Option 2: From Source
+
+```bash
+git clone https://github.com/rahulthakur319/react-native-mcp-server.git
 cd react-native-mcp-server
 npm install
 npm run build
 ```
 
 ## Usage
+
+### Quick Start with NPX
+
+```bash
+# Start with default ports (8081, 8082, 8083, 19000, 19001, 19002, 3000, 3001)
+npx react-native-mcp-server
+
+# Start with custom ports
+npx react-native-mcp-server --ports 8081,19000,3000
+
+# Start with Expo ports
+npx react-native-mcp-server --ports 19000,19001,19002
+
+# Test connection
+npx react-native-mcp-server --test
+
+# Show help
+npx react-native-mcp-server --help
+```
 
 ### With Claude Desktop
 
@@ -35,12 +66,23 @@ npm run build
 {
   "mcpServers": {
     "react-native-debugger": {
-      "command": "node",
-      "args": ["/path/to/react-native-mcp-server/dist/index.js"],
-      "env": {
-        "RN_METRO_PORT": "8081",
-        "RN_METRO_PORTS": "8081,8082,8083,19000,19001"
-      }
+      "command": "npx",
+      "args": ["react-native-mcp-server", "--ports", "8081,8082,19000"],
+      "env": {}
+    }
+  }
+}
+```
+
+Or if installed globally:
+
+```json
+{
+  "mcpServers": {
+    "react-native-debugger": {
+      "command": "react-native-mcp-server",
+      "args": ["--ports", "8081,8082,19000"],
+      "env": {}
     }
   }
 }
@@ -48,10 +90,18 @@ npm run build
 
 2. Restart Claude Desktop
 
-### Standalone
+### CLI Options
 
 ```bash
-npm start
+npx react-native-mcp-server [options]
+
+OPTIONS:
+  --help, -h              Show help message
+  --version, -v           Show version number
+  --ports <ports>         Comma-separated Metro ports (e.g., --ports 8081,8082,19000)
+  --port <port>           Single Metro port (scans port+1, port+2 too)
+  --range <start>-<end>   Scan port range (e.g., --range 8080-8090)
+  --test                  Run connection test
 ```
 
 ### Custom Port Configuration

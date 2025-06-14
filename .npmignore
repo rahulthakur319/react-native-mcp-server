@@ -1,0 +1,31 @@
+# Source files
+src/
+tsconfig.json
+
+# Development files
+test-*.js
+debug-*.js
+quick-*.js
+final-*.js
+issue.md
+
+# Git and CI
+.git/
+.github/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
+
+# Runtime
+.DS_Store
+.env*
+
+# Build artifacts (keep dist/)
+node_modules/
+coverage/
